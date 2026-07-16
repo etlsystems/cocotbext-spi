@@ -1,6 +1,4 @@
-from cocotb.triggers import FallingEdge
 from cocotb.triggers import First
-from cocotb.triggers import RisingEdge
 
 from ...spi import SpiBus
 from ...spi import SpiConfig
@@ -93,23 +91,29 @@ class ADXL345(SpiSlaveBase):
 
         if do_multibyte:
             # check for multibyte read/write by seeing which is first, a clk edge or frame end
-            while await First(frame_end, FallingEdge(self._sclk)) != frame_end:
+            while True:
+                # If frame_end and an edge happen simultaneously, First() can pick either.
+                # Guard with CS level so we do not start a new byte after frame deassertion.
+                edge_or_end = await First(frame_end, self._leading_sclk_edge())
+                if edge_or_end == frame_end or bool(self._cs.value) == self._config.cs_active_low:
+                    break
+
                 address = address + 1
                 self._miso.value = bool(self._registers[address] & 0b1000_0000)
 
-                # shift in the remaining words
-                rx_word = int(await self._shift(7, tx_word=(self._registers[address] & 0b0111_1111))) << 1
-
-                # grab the last bit
-                if (await First(RisingEdge(self._sclk), frame_end)) == frame_end or self._cs.value == 1:
+                # sample the first bit on the first trailing edge after byte start
+                if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end or self._cs.value == 1:
                     raise SpiFrameError("End of frame in the middle of a transaction")
-                rx_word |= int(self._mosi.value)
+                rx_word = int(self._mosi.value) << 7
+
+                # shift in the remaining 7 bits
+                rx_word |= int(await self._shift(7, tx_word=(self._registers[address] & 0b0111_1111)))
 
                 # perform write if necessary
                 if do_write:
                     self._registers[address] = rx_word
         else:
-            if await First(frame_end, FallingEdge(self._sclk)) != frame_end:
+            if await First(frame_end, self._leading_sclk_edge()) != frame_end:
                 raise SpiFrameError("ADXL345: received another clock edge when end of frame expected")
 
         if not bool(self._sclk.value):
