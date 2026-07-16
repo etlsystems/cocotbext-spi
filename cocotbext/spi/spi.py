@@ -389,6 +389,7 @@ class SpiSlaveBase(ABC):
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
                 most_recent_bit = int(self._mosi.value)
 
+                propagate_out_delay = Timer(delay, units=delay_units)
                 w = await First(propagate_out_delay, frame_end, self._leading_sclk_edge())
 
                 if w != propagate_out_delay:
