@@ -216,30 +216,32 @@ class SpiMaster:
 
             await self._SpiClock.start()
 
-            leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
-            trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
-
             if self._config.cpha:
                 # if CPHA=1, the first edge is propagate, the second edge is sample
                 for k in range(self._config.word_width):
                     # the out changes on the leading edge of clock
+                    leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                     await leading_edge
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 1 - k)))
 
                     # while the in captures on the trailing edge of the clock
+                    trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
                     await trailing_edge
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
             else:
                 # if CPHA=0, the first edge is sample, the second edge is propagate
                 # we already clocked out one bit on edge of chip select, so we will clock out less bits
                 for k in range(self._config.word_width - 1):
+                    leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                     await leading_edge
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
 
+                    trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
                     await trailing_edge
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 2 - k)))
 
                 # but we haven't sampled enough times, so we will wait for another edge to sample
+                leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                 await leading_edge
                 rx_word |= bool(self._miso.value)
 
@@ -314,8 +316,8 @@ class SpiSlaveBase(ABC):
 
         for k in range(num_bits):
             # If both events happen at the same time, the returned one is indeterminate, thus
-            # checking for cs = 1
-            if (await First(self._leading_sclk_edge(), frame_end)) == frame_end or self._cs.value == 1:
+            # checking if CS is deasserted
+            if (await First(self._leading_sclk_edge(), frame_end)) == frame_end or self._cs.value == int(self._config.cs_active_low):
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
@@ -329,7 +331,7 @@ class SpiSlaveBase(ABC):
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
 
             # do the opposite of what was done on the first edge
-            if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end or self._cs.value == 1:
+            if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end or self._cs.value == int(self._config.cs_active_low):
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
