@@ -7,6 +7,11 @@ on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
 
+  # Run only for version tags to preserve tag-based publishing
+  push:
+    tags:
+      - 'v*'
+
   # CI can be manually started on any branch
   workflow_dispatch:
 
