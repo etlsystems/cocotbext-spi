@@ -10,7 +10,7 @@ on:
   # CI can be manually started on any branch
   workflow_dispatch:
 
-# This sets up a concurrency group for the branch associated with the workflow.defaults:
+# This sets up a concurrency group for the branch associated with the workflow.
 # If a new workflow is triggered, any running workflow with the same concurrency group will be cancelled.
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
