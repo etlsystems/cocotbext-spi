@@ -16,13 +16,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
-# These are keys for gcs access. But nix is looking for s3 compatibility, so we expose via AWS env variables
-env:
-  USER: runner
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+# Secrets should be scoped to the job/step that needs them (avoid exporting secrets globally on PR runs).
 
 jobs:
   build:
