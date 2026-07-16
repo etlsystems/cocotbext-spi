@@ -13,7 +13,7 @@ on:
 # This sets up a concurrency group for the branch associated with the workflow.
 # If a new workflow is triggered, any running workflow with the same concurrency group will be cancelled.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 # Secrets should be scoped to the job/step that needs them (avoid exporting secrets globally on PR runs).
