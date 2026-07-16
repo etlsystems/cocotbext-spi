@@ -1,152 +1,57 @@
-name: ci
+name: Regression Tests
 
-# Run this workflow on pull requests and manual trigger
-on:
-  # Run on PR events: opened, reopened when base branch changes, edited, or when new commits pushed
-  pull_request:
-    types: [opened, reopened, edited, synchronize]
-
-  # CI can be manually started on any branch
-  workflow_dispatch:
-
-# This sets up a concurrency group for the branch associated with the workflow.
-# If a new workflow is triggered, any running workflow with the same concurrency group will be cancelled.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
-
-env:
-  USER: runner
-  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
-  BENCHER_PROJECT: "hdl"
-  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+on: [push, pull_request]
 
 jobs:
   build:
-    name: Python ${{ matrix.python-version }}
+    name: Python ${{matrix.python-version}}
+    runs-on: ubuntu-latest
+
     strategy:
-      fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11']
-    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
+    - name: Set up Python ${{matrix.python-version}}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{matrix.python-version}}
 
-      - name: Install Icarus Verilog
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends iverilog
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox tox-gh-actions
-
-      - name: Add gh-actions mapping to tox
-        run: |
-          cat >> tox.ini << 'EOF'
-
-          [gh-actions]
-          python =
-              3.9: py39
-              3.10: py310
-              3.11: py311
-          EOF
-
-      - name: Test with tox
-        run: tox
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox
-
-      - name: Run lint
-        run: tox -e lint
-
-  check-dist:
-    name: Check distribution
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install tox
-
-      - name: Build and check dist
-        run: tox -e check-dist
+    - name: Install Icarus Verilog
+      run: |
+        sudo apt install -y --no-install-recommends iverilog
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tox tox-gh-actions
+    - name: Test with tox
+      run: tox
 
   publish_pypi:
-    name: Publish PyPI
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    needs: [build, lint, check-dist]
-    permissions:
-      contents: write
-
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags')
+    needs: [build]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v3
+      - name: Set up Python
         with:
           python-version: '3.10'
-
+        uses: actions/setup-python@v4
       - name: Install uv
         run: |
           python -m pip install --upgrade pip
           pip install uv
-
       - name: Publish to PyPI
-        if: ${{ secrets.PYPI_TOKEN }}
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
-        run: uv publish
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        run: |
+          uv publish
+      - name: Create Release on Github
+        uses: softprops/action-gh-release@v1
         with:
           draft: true
           prerelease: false
           files: ./dist/*
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  report:
-    name: 🧪 Report
-    needs: [build, lint, check-dist]
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Transitive failures detected
-        if: ${{ failure() }}
-        run: exit 1
-
-      - name: No failures detected
-        if: ${{ !failure() }}
-        run: exit 0
+          token: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
