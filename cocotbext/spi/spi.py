@@ -216,28 +216,31 @@ class SpiMaster:
 
             await self._SpiClock.start()
 
+            leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
+            trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
+
             if self._config.cpha:
                 # if CPHA=1, the first edge is propagate, the second edge is sample
                 for k in range(self._config.word_width):
                     # the out changes on the leading edge of clock
-                    await RisingEdge(self._sclk)
+                    await leading_edge
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 1 - k)))
 
                     # while the in captures on the trailing edge of the clock
-                    await FallingEdge(self._sclk)
+                    await trailing_edge
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
             else:
                 # if CPHA=0, the first edge is sample, the second edge is propagate
                 # we already clocked out one bit on edge of chip select, so we will clock out less bits
                 for k in range(self._config.word_width - 1):
-                    await RisingEdge(self._sclk)
+                    await leading_edge
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
 
-                    await FallingEdge(self._sclk)
+                    await trailing_edge
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 2 - k)))
 
                 # but we haven't sampled enough times, so we will wait for another edge to sample
-                await RisingEdge(self._sclk)
+                await leading_edge
                 rx_word |= bool(self._miso.value)
 
             # set sclk back to idle state
@@ -289,6 +292,12 @@ class SpiSlaveBase(ABC):
             self._run_coroutine_obj.cancel()
         self._run_coroutine_obj = cocotb.start_soon(self._run())
 
+    def _leading_sclk_edge(self):
+        return FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
+
+    def _trailing_sclk_edge(self):
+        return RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
+
     async def _shift(self, num_bits: int, tx_word: Optional[int] = None) -> int:
         """ Shift in data on the MOSI signal. Shift out the tx_word on the MISO signal.
 
@@ -306,7 +315,7 @@ class SpiSlaveBase(ABC):
         for k in range(num_bits):
             # If both events happen at the same time, the returned one is indeterminate, thus
             # checking for cs = 1
-            if (await First(RisingEdge(self._sclk), frame_end)) == frame_end or self._cs.value == 1:
+            if (await First(self._leading_sclk_edge(), frame_end)) == frame_end or self._cs.value == 1:
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
@@ -320,7 +329,7 @@ class SpiSlaveBase(ABC):
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
 
             # do the opposite of what was done on the first edge
-            if (await First(RisingEdge(self._sclk), frame_end)) == frame_end or self._cs.value == 1:
+            if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end or self._cs.value == 1:
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
@@ -356,13 +365,13 @@ class SpiSlaveBase(ABC):
         propagate_out_delay = Timer(delay, units=delay_units)
 
         for k in range(num_bits):
-            f = await First(RisingEdge(self._sclk), frame_end)
+            f = await First(self._leading_sclk_edge(), frame_end)
             if not self._config.cpha:
                 # when CPHA=0, the first thing the slave should do is read in
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
                 most_recent_bit = int(self._mosi.value)
 
-                w = await First(propagate_out_delay, frame_end, RisingEdge(self._sclk))
+                w = await First(propagate_out_delay, frame_end, self._trailing_sclk_edge())
 
                 if w != propagate_out_delay:
                     if w == frame_end:
@@ -372,14 +381,14 @@ class SpiSlaveBase(ABC):
 
                 self._miso.value = bool(most_recent_bit)
 
-            s = await First(RisingEdge(self._sclk), frame_end)
+            s = await First(self._trailing_sclk_edge(), frame_end)
 
             if self._config.cpha:
                 # when CPHA=1, the second thing we should do is read in
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
                 most_recent_bit = int(self._mosi.value)
 
-                w = await First(propagate_out_delay, frame_end, RisingEdge(self._sclk))
+                w = await First(propagate_out_delay, frame_end, self._leading_sclk_edge())
 
                 if w != propagate_out_delay:
                     if w == frame_end:
