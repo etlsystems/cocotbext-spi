@@ -220,29 +220,24 @@ class SpiMaster:
                 # if CPHA=1, the first edge is propagate, the second edge is sample
                 for k in range(self._config.word_width):
                     # the out changes on the leading edge of clock
-                    leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
-                    await leading_edge
+                    await FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 1 - k)))
 
                     # while the in captures on the trailing edge of the clock
-                    trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
-                    await trailing_edge
+                    await RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
             else:
                 # if CPHA=0, the first edge is sample, the second edge is propagate
                 # we already clocked out one bit on edge of chip select, so we will clock out less bits
                 for k in range(self._config.word_width - 1):
-                    leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
-                    await leading_edge
+                    await FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                     rx_word |= bool(self._miso.value) << (self._config.word_width - 1 - k)
 
-                    trailing_edge = RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
-                    await trailing_edge
+                    await RisingEdge(self._sclk) if self._config.cpol else FallingEdge(self._sclk)
                     self._mosi.value = bool(tx_word & (1 << (self._config.word_width - 2 - k)))
 
                 # but we haven't sampled enough times, so we will wait for another edge to sample
-                leading_edge = FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
-                await leading_edge
+                await FallingEdge(self._sclk) if self._config.cpol else RisingEdge(self._sclk)
                 rx_word |= bool(self._miso.value)
 
             # set sclk back to idle state
