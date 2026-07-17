@@ -313,7 +313,7 @@ class SpiSlaveBase(ABC):
         for k in range(num_bits):
             # If both events happen at the same time, the returned one is indeterminate, thus
             # checking if CS is deasserted
-            if (await First(self._leading_sclk_edge(), frame_end)) == frame_end and int(self._cs.value) == cs_deasserted:
+            if (await First(self._leading_sclk_edge(), frame_end)) == frame_end or int(self._cs.value) == cs_deasserted:
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
