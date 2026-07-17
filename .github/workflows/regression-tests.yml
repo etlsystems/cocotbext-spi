@@ -1,6 +1,27 @@
 name: Regression Tests
 
-on: [push, pull_request]
+# Run this workflow every time a new commit pushed to an open PR, or manually
+on:
+  # Includes edited because base-branch changes can require rerunning CI.
+  # Comment edits alone usually do not matter, but this keeps behavior simple and safe.
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
+
+  # Run on version tags for backward-compatible publish flow
+  push:
+    tags:
+      - 'v*'
+
+  # CI can be manually started on any branch
+  workflow_dispatch:
+
+# This sets up a concurrency group for the branch associated with the workflow.
+# If a new workflow is triggered, any running workflow with the same concurrency group will be cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+# Secrets should be scoped to the job/step that needs them (avoid exporting secrets globally on PR runs).
 
 jobs:
   build:
@@ -9,7 +30,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ['3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@v3
