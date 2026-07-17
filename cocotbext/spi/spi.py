@@ -385,13 +385,8 @@ class SpiSlaveBase(ABC):
 
                 self._miso.value = bool(most_recent_bit)
 
-<<<<<<< HEAD
             s = await First(self._trailing_sclk_edge(), frame_end)
             if s == frame_end or int(self._cs.value) == cs_deasserted:
-=======
-            await First(self._trailing_sclk_edge(), frame_end)
-            if int(self._cs.value) == cs_deasserted:
->>>>>>> 3ced4dc (Fixed race condition)
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
