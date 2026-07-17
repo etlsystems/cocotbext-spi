@@ -381,6 +381,8 @@ class SpiSlaveBase(ABC):
                 self._miso.value = bool(most_recent_bit)
 
             s = await First(self._trailing_sclk_edge(), frame_end)
+            if s == frame_end or int(self._cs.value) == cs_deasserted:
+                raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
                 # when CPHA=1, the second thing we should do is read in
