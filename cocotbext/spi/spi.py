@@ -327,7 +327,7 @@ class SpiSlaveBase(ABC):
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
 
             # do the opposite of what was done on the first edge
-            if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end and int(self._cs.value) == cs_deasserted:
+            if (await First(self._trailing_sclk_edge(), frame_end)) == frame_end or int(self._cs.value) == cs_deasserted:
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
