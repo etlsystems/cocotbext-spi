@@ -360,10 +360,13 @@ class SpiSlaveBase(ABC):
         rx_word = 0
 
         frame_end = RisingEdge(self._cs) if self._config.cs_active_low else FallingEdge(self._cs)
-        propagate_out_delay = Timer(delay, units=delay_units)
+        cs_deasserted = int(self._config.cs_active_low)
 
         for k in range(num_bits):
-            f = await First(self._leading_sclk_edge(), frame_end)
+            await First(self._leading_sclk_edge(), frame_end)
+            if int(self._cs.value) == cs_deasserted:
+                raise SpiFrameError("End of frame in the middle of a transaction")
+
             if not self._config.cpha:
                 # when CPHA=0, the first thing the slave should do is read in
                 rx_word |= int(self._mosi.value) << (num_bits - 1 - k)
@@ -371,6 +374,8 @@ class SpiSlaveBase(ABC):
 
                 propagate_out_delay = Timer(delay, units=delay_units)
                 w = await First(propagate_out_delay, frame_end, self._trailing_sclk_edge())
+                if int(self._cs.value) == cs_deasserted:
+                    raise SpiFrameError("Unexpected end of frame in the middle of a transaction")
 
                 if w != propagate_out_delay:
                     if w == frame_end:
@@ -380,8 +385,13 @@ class SpiSlaveBase(ABC):
 
                 self._miso.value = bool(most_recent_bit)
 
+<<<<<<< HEAD
             s = await First(self._trailing_sclk_edge(), frame_end)
             if s == frame_end or int(self._cs.value) == cs_deasserted:
+=======
+            await First(self._trailing_sclk_edge(), frame_end)
+            if int(self._cs.value) == cs_deasserted:
+>>>>>>> 3ced4dc (Fixed race condition)
                 raise SpiFrameError("End of frame in the middle of a transaction")
 
             if self._config.cpha:
@@ -391,6 +401,8 @@ class SpiSlaveBase(ABC):
 
                 propagate_out_delay = Timer(delay, units=delay_units)
                 w = await First(propagate_out_delay, frame_end, self._leading_sclk_edge())
+                if int(self._cs.value) == cs_deasserted:
+                    raise SpiFrameError("Unexpected end of frame in the middle of a transaction")
 
                 if w != propagate_out_delay:
                     if w == frame_end:
@@ -399,9 +411,6 @@ class SpiSlaveBase(ABC):
                         raise SpiFrameError("Unexpected edge of sclk while waiting to propagate next bit")
 
                 self._miso.value = bool(most_recent_bit)
-
-            if frame_end in (f, s):
-                raise SpiFrameError("End of frame in the middle of a transaction")
 
         return rx_word
 
