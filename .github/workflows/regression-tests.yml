@@ -2,8 +2,8 @@ name: Regression Tests
 
 # Run this workflow every time a new commit pushed to an open PR, or manually
 on:
-  # Caution: Not sensitive to edited, because running on changed comments is pointless almost always.
-  # The exceptions is if changing base branch. If that occurs, a manual run is probably in order
+  # Includes edited because base-branch changes can require rerunning CI.
+  # Comment edits alone usually do not matter, but this keeps behavior simple and safe.
   pull_request:
     types: [opened, reopened, edited, synchronize]
 
